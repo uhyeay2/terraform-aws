@@ -64,6 +64,7 @@ jobs:
       # Install TFLint
       # ------------------------------------------------------------------------
       - name: Install TFLint
+        working-directory: ${{ github.workspace }}
         run: |
           curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
 
@@ -74,8 +75,10 @@ jobs:
       # Required before running TFLint.
       # ------------------------------------------------------------------------
       - name: TFLint Plugin Initialization
-        working-directory: .
-        run: tflint --init
+        working-directory: ${{ github.workspace }}
+        run: |
+          tflint --init \
+            --plugin-dir ${{ github.workspace }}/.tflint.d/plugins
 
       # ------------------------------------------------------------------------
       # Run TFLint
@@ -83,8 +86,10 @@ jobs:
       # Terraform code. Requires plugins initialized in the same directory.
       # ------------------------------------------------------------------------
       - name: TFLint
-        working-directory: .
-        run: tflint --config=tools/tflint.hcl
+        working-directory: ${{ github.workspace }}
+        run: |
+          tflint --config=tools/tflint.hcl \
+            --plugin-dir ${{ github.workspace }}/.tflint.d/plugins
 
       # ------------------------------------------------------------------------
       # Install Checkov
