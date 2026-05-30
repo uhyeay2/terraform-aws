@@ -62,35 +62,65 @@ jobs:
 
       # ------------------------------------------------------------------------
       # Install TFLint
+      # Includes diagnostic output to verify installation paths and environment.
       # ------------------------------------------------------------------------
       - name: Install TFLint
         working-directory: ${{ github.workspace }}
         run: |
+          echo "=== INSTALLING TFLINT ==="
+          echo "Working directory: $(pwd)"
+          echo "Listing workspace:"
+          ls -al .
+          echo "Installing TFLint..."
           curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
+          echo "TFLint binary location:"
+          which tflint || true
+          echo "TFLint version:"
+          tflint --version || true
+          echo "Environment variables:"
+          env | sort
 
- # ------------------------------------------------------------------------
+      # ------------------------------------------------------------------------
       # Initialize TFLint Plugins
-      # Ensures all plugins defined in tools/tflint.hcl (e.g., AWS) are
-      # downloaded into the correct working directory.
-      # Required before running TFLint.
+      # Adds extensive diagnostics to confirm plugin directory creation,
+      # working directory, and plugin installation behavior.
       # ------------------------------------------------------------------------
       - name: TFLint Plugin Initialization
         working-directory: ${{ github.workspace }}
         run: |
-          tflint --init \
-            --plugin-dir ${{ github.workspace }}/.tflint.d/plugins
+          echo "=== TFLINT INIT DEBUG ==="
+          echo "Working directory: $(pwd)"
+          echo "Listing workspace:"
+          ls -al .
+          echo "Ensuring plugin directory exists:"
+          mkdir -p .tflint.d/plugins
+          ls -al .tflint.d || true
+          echo "Running tflint --init..."
+          tflint --init --plugin-dir ${{ github.workspace }}/.tflint.d/plugins || true
+          echo "Listing plugin directory after init:"
+          ls -al .tflint.d/plugins || true
+          echo "TFLint version:"
+          tflint --version || true
 
       # ------------------------------------------------------------------------
       # Run TFLint
-      # Uses the project's configuration file in tools/tflint.hcl to lint all
-      # Terraform code. Requires plugins initialized in the same directory.
+      # Includes diagnostics to confirm plugin loading, working directory,
+      # and configuration file resolution.
       # ------------------------------------------------------------------------
       - name: TFLint
         working-directory: ${{ github.workspace }}
         run: |
+          echo "=== TFLINT RUN DEBUG ==="
+          echo "Working directory: $(pwd)"
+          echo "Listing workspace:"
+          ls -al .
+          echo "Listing plugin directory:"
+          ls -al .tflint.d/plugins || true
+          echo "Running TFLint with config and plugin-dir..."
           tflint --config=tools/tflint.hcl \
-            --plugin-dir ${{ github.workspace }}/.tflint.d/plugins
-
+                 --plugin-dir ${{ github.workspace }}/.tflint.d/plugins \
+                 --log-level debug
+                 
       # ------------------------------------------------------------------------
       # Install Checkov
       # ------------------------------------------------------------------------
