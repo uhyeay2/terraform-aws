@@ -68,7 +68,7 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: |
           echo "=== Installing TFLint ==="
-          echo "Working directory: $( ${{ github.workspace}} )"
+          echo "Working directory: $(pwd)"
           echo "Installing TFLint..."
           curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
           echo "TFLint binary location:"
@@ -85,7 +85,7 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: |
           echo "=== TFLint Plugin Initialization ==="
-          echo "Working directory: $( ${{ github.workspace}} )"
+          echo "Working directory: $(pwd)"
           echo "Running tflint --init..."
           tflint --init
           echo "TFLint version:"
@@ -100,7 +100,7 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: |
           echo "=== TFLint RUN ==="
-          echo "Working directory: $( ${{ github.workspace}} )"
+          echo "Working directory: $(pwd)"
           echo "Running TFLint with config..."
           tflint --config=tools/tflint.hcl \
 
