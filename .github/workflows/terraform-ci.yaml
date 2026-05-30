@@ -67,19 +67,23 @@ jobs:
         run: |
           curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
 
-      # ------------------------------------------------------------------------
+ # ------------------------------------------------------------------------
       # Initialize TFLint Plugins
-      # Downloads and configures all plugins defined in tools/tflint.hcl
-      # (e.g., AWS, AzureRM, Google). Required before running TFLint.
+      # Ensures all plugins defined in tools/tflint.hcl (e.g., AWS) are
+      # downloaded into the correct working directory.
+      # Required before running TFLint.
       # ------------------------------------------------------------------------
       - name: TFLint Plugin Initialization
+        working-directory: ${{ github.workspace }}
         run: tflint --init
 
       # ------------------------------------------------------------------------
       # Run TFLint
-      # Uses the project's configuration file in tools/tflint.hcl
+      # Uses the project's configuration file in tools/tflint.hcl to lint all
+      # Terraform code. Requires plugins initialized in the same directory.
       # ------------------------------------------------------------------------
       - name: TFLint
+        working-directory: ${{ github.workspace }}
         run: tflint --config=tools/tflint.hcl
 
       # ------------------------------------------------------------------------
