@@ -68,6 +68,14 @@ jobs:
           curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
 
       # ------------------------------------------------------------------------
+      # Initialize TFLint Plugins
+      # Downloads and configures all plugins defined in tools/tflint.hcl
+      # (e.g., AWS, AzureRM, Google). Required before running TFLint.
+      # ------------------------------------------------------------------------
+      - name: TFLint Plugin Initialization
+        run: tflint --init
+
+      # ------------------------------------------------------------------------
       # Run TFLint
       # Uses the project's configuration file in tools/tflint.hcl
       # ------------------------------------------------------------------------
@@ -81,8 +89,10 @@ jobs:
         run: pip install checkov
 
       # ------------------------------------------------------------------------
-      # Run Checkov Security Scan
-      # Uses the project's configuration file in tools/checkov-config.yaml
+      # Run Checkov Security Scan (recursive)
+      # Scans all Terraform directories, including nested modules, by targeting
+      # the repository root. Uses the project's configuration file for rule
+      # enforcement and suppression handling.
       # ------------------------------------------------------------------------
       - name: Checkov Security Scan
-        run: checkov --config-file tools/checkov-config.yaml
+        run: checkov -d . --config-file tools/checkov-config.yaml
