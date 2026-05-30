@@ -10,18 +10,24 @@
 # - TFLint (linting)
 # - Checkov (security scanning)
 #
-# This workflow runs on all branches and all pull requests. It acts as the
-# project's global quality gate before any environment-specific planning or
-# deployment occurs.
+# This workflow runs on all pull requests and pushes that modify Terraform-
+# related files. It acts as the project's global quality gate before any
+# environment-specific planning or deployment occurs.
 # ------------------------------------------------------------------------------
 
 name: Terraform CI
 
 on:
   pull_request:
-    branches: [ "*" ]
+    paths:
+      - "**/*.tf"
+      - "**/*.tfvars"
+      - "tools/**"
   push:
-    branches: [ "*" ]
+    paths:
+      - "**/*.tf"
+      - "**/*.tfvars"
+      - "tools/**"
 
 permissions:
   contents: read
@@ -54,67 +60,57 @@ jobs:
         run: terraform fmt -recursive -check
 
       # ------------------------------------------------------------------------
-      # Terraform Validate (root/modules)
-      # Validates shared modules or root-level configurations.
+      # Terraform Validate (all modules)
+      # Automatically discovers all Terraform directories and validates each.
       # ------------------------------------------------------------------------
-      - name: Terraform Validate (root)
-        run: terraform validate || true
+      - name: Terraform Validate (all modules)
+        run: |
+          echo "=== Validating all Terraform modules ==="
+          for dir in $(find . -type f -name "*.tf" -exec dirname {} \; | sort -u); do
+            echo "--- Validating: $dir ---"
+            terraform -chdir="$dir" init -backend=false -input=false >/dev/null
+            terraform -chdir="$dir" validate
+          done
 
       # ------------------------------------------------------------------------
-      # Install TFLint
-      # Includes diagnostic output to verify installation paths and environment.
+      # Setup TFLint
+      # Uses the official action for deterministic, version-pinned installation.
       # ------------------------------------------------------------------------
-      - name: Install TFLint
-        working-directory: ${{ github.workspace }}
-        run: |
-          echo "=== Installing TFLint ==="
-          echo "Working directory: $(pwd)"
-          echo "Installing TFLint..."
-          curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
-          echo "TFLint binary location:"
-          which tflint || true
-          echo "TFLint version:"
-          tflint --version || true
+      - name: Setup TFLint
+        uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: v0.50.3
 
       # ------------------------------------------------------------------------
       # Initialize TFLint Plugins
-      # Adds extensive diagnostics to confirm plugin directory creation,
-      # working directory, and plugin installation behavior.
+      # Ensures plugin directory creation and plugin installation.
       # ------------------------------------------------------------------------
       - name: TFLint Plugin Initialization
-        working-directory: ${{ github.workspace }}
         run: |
-          echo "=== TFLint Plugin Initialization ==="
-          echo "Working directory: $(pwd)"
-          echo "Running tflint --init..."
+          echo "=== Initializing TFLint Plugins ==="
           tflint --init
-          echo "TFLint version:"
-          tflint --version || true
 
       # ------------------------------------------------------------------------
       # Run TFLint
-      # Includes diagnostics to confirm plugin loading, working directory,
-      # and configuration file resolution.
+      # Executes linting using the project's configuration file.
       # ------------------------------------------------------------------------
       - name: TFLint
-        working-directory: ${{ github.workspace }}
         run: |
-          echo "=== Running TFLint config ==="
-          echo "Working directory: $(pwd)"
-          echo "Running TFLint with config..."
+          echo "=== Running TFLint ==="
           tflint --config=tools/tflint.hcl
 
       # ------------------------------------------------------------------------
-      # Install Checkov
+      # Install Checkov (version pinned)
+      # Ensures deterministic security scanning behavior.
       # ------------------------------------------------------------------------
       - name: Install Checkov
-        run: pip install checkov
+        run: pip install checkov==3.2.260
 
       # ------------------------------------------------------------------------
-      # Run Checkov Security Scan (recursive)
-      # Scans all Terraform directories, including nested modules, by targeting
-      # the repository root. Uses the project's configuration file for rule
-      # enforcement and suppression handling.
+      # Run Checkov Security Scan (Terraform-only)
+      # Scans all Terraform directories recursively using the project's config.
       # ------------------------------------------------------------------------
       - name: Checkov Security Scan
-        run: checkov -d . --config-file tools/checkov-config.yaml
+        run: |
+          echo "=== Running Checkov Security Scan ==="
+          checkov -d . --framework terraform --config-file tools/checkov-config.yaml
