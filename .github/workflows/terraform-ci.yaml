@@ -99,10 +99,10 @@ jobs:
       - name: TFLint
         working-directory: ${{ github.workspace }}
         run: |
-          echo "=== TFLint RUN ==="
+          echo "=== Running TFLint config ==="
           echo "Working directory: $(pwd)"
           echo "Running TFLint with config..."
-          tflint --config=../tools/tflint.hcl \
+          tflint --config=tools/tflint.hcl
 
       # ------------------------------------------------------------------------
       # Install Checkov
