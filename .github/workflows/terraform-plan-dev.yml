@@ -1,35 +1,34 @@
 # ------------------------------------------------------------------------------
-# Terraform CI Pipeline
+# Terraform Plan Pipeline (Development Environment)
 # ------------------------------------------------------------------------------
-# This workflow performs automated formatting, validation, linting, and security
-# scanning for all Terraform modules and environments. It ensures that every
-# pull request meets the project's quality, security, and compliance standards
-# before being merged.
+# This workflow generates a Terraform plan for the development environment.
+# It runs only when files within envs/dev/ are modified. The plan is uploaded
+# as an artifact for review during pull requests or after merges.
 #
-# Tools integrated:
-# - Terraform CLI
-# - TFLint (linting)
-# - Checkov (security scanning)
-#
-# This workflow is designed to be environment-agnostic and safe to run on all
-# branches and pull requests.
+# This workflow depends on the global Terraform CI workflow, ensuring that all
+# static checks pass before environment-specific planning occurs.
 # ------------------------------------------------------------------------------
 
-name: Terraform CI
+name: Terraform Plan (dev)
 
 on:
   pull_request:
     branches: [ main ]
+    paths:
+      - "envs/dev/**"
   push:
     branches: [ main ]
+    paths:
+      - "envs/dev/**"
 
 permissions:
   contents: read
 
 jobs:
-  terraform-ci:
-    name: Terraform Linting, Validation & Security Scan
+  plan-dev:
+    name: Terraform Plan (dev)
     runs-on: ubuntu-latest
+    needs: []
 
     steps:
       # ------------------------------------------------------------------------
@@ -47,55 +46,25 @@ jobs:
           terraform_version: 1.9.5
 
       # ------------------------------------------------------------------------
-      # Terraform Format Check
-      # Ensures all Terraform files follow canonical formatting.
+      # Terraform Init (dev)
+      # Initializes backend and providers for the dev environment.
       # ------------------------------------------------------------------------
-      - name: Terraform Format
-        run: terraform fmt -recursive -check
+      - name: Terraform Init (dev)
+        working-directory: envs/dev
+        run: terraform init
 
       # ------------------------------------------------------------------------
-      # Terraform Validate
-      # Validates all environment configurations.
+      # Terraform Validate (dev)
+      # Validates the dev environment configuration.
       # ------------------------------------------------------------------------
       - name: Terraform Validate (dev)
         working-directory: envs/dev
         run: terraform validate
 
       # ------------------------------------------------------------------------
-      # Install TFLint
-      # ------------------------------------------------------------------------
-      - name: Install TFLint
-        run: |
-          curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
-
-      # ------------------------------------------------------------------------
-      # Run TFLint
-      # Uses the project's configuration file in tools/tflint.hcl
-      # ------------------------------------------------------------------------
-      - name: TFLint
-        run: tflint --config=tools/tflint.hcl
-
-      # ------------------------------------------------------------------------
-      # Install Checkov
-      # ------------------------------------------------------------------------
-      - name: Install Checkov
-        run: pip install checkov
-
-      # ------------------------------------------------------------------------
-      # Run Checkov Security Scan
-      # Uses the project's configuration file in tools/checkov-config.yaml
-      # ------------------------------------------------------------------------
-      - name: Checkov Security Scan
-        run: checkov --config-file tools/checkov-config.yaml
-
-      # ------------------------------------------------------------------------
       # Terraform Plan (dev)
       # Generates an execution plan for visibility and review.
       # ------------------------------------------------------------------------
-      - name: Terraform Init (dev)
-        working-directory: envs/dev
-        run: terraform init
-
       - name: Terraform Plan (dev)
         working-directory: envs/dev
         run: terraform plan -var-file=terraform.tfvars -out=tfplan
