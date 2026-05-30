@@ -102,7 +102,7 @@ jobs:
           echo "=== TFLint RUN ==="
           echo "Working directory: $(pwd)"
           echo "Running TFLint with config..."
-          tflint --config=tools/tflint.hcl \
+          tflint --config=../tools/tflint.hcl \
 
       # ------------------------------------------------------------------------
       # Install Checkov
