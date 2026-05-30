@@ -1,0 +1,31 @@
+# ------------------------------------------------------------------------------
+# Checkov configuration for Terraform security scanning.
+# This configuration enables comprehensive scanning while allowing selective
+# suppression of checks that are not applicable to the current architecture.
+# ------------------------------------------------------------------------------
+
+quiet: false
+compact: false
+
+# Enable all Terraform checks
+framework:
+  - terraform
+
+# Directories to scan
+directory:
+  - modules
+  - envs
+
+# Skip rules that are not applicable to a minimal VPC + EC2 architecture
+skip-check:
+  # VPC Flow Logs not required for initial baseline
+  - CKV_AWS_111
+  # NAT Gateway not used in single-public-subnet architecture
+  - CKV_AWS_118
+  # No load balancer yet
+  - CKV_AWS_150
+  # No S3 buckets yet
+  - CKV_AWS_21
+  - CKV_AWS_52
+  # No RDS resources
+  - CKV_AWS_157

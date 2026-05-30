@@ -1,0 +1,46 @@
+# ------------------------------------------------------------------------------
+# Pre-commit configuration for Terraform workflows
+# ------------------------------------------------------------------------------
+# This configuration enforces formatting, linting, validation, and security
+# scanning before code is committed. It ensures consistent quality across all
+# Terraform environments and modules.
+# ------------------------------------------------------------------------------
+
+repos:
+  # ---------------------------------------------------------------------------
+  # Terraform formatting and validation
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.88.0
+    hooks:
+      - id: terraform_fmt
+      - id: terraform_validate
+
+  # ---------------------------------------------------------------------------
+  # TFLint for Terraform linting
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/terraform-linters/tflint
+    rev: v0.50.3
+    hooks:
+      - id: tflint
+        args:
+          - "--config=tools/tflint.hcl"
+
+  # ---------------------------------------------------------------------------
+  # Checkov for security scanning
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/bridgecrewio/checkov
+    rev: 3.2.530
+    hooks:
+      - id: checkov
+        args:
+          - "--config-file=tools/checkov-config.yaml"
+
+  # ---------------------------------------------------------------------------
+  # General code hygiene (whitespace, EOF)
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer

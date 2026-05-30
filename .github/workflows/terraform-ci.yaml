@@ -1,0 +1,111 @@
+# ------------------------------------------------------------------------------
+# Terraform CI Pipeline
+# ------------------------------------------------------------------------------
+# This workflow performs automated formatting, validation, linting, and security
+# scanning for all Terraform modules and environments. It ensures that every
+# pull request meets the project's quality, security, and compliance standards
+# before being merged.
+#
+# Tools integrated:
+# - Terraform CLI
+# - TFLint (linting)
+# - Checkov (security scanning)
+#
+# This workflow is designed to be environment-agnostic and safe to run on all
+# branches and pull requests.
+# ------------------------------------------------------------------------------
+
+name: Terraform CI
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  terraform-ci:
+    name: Terraform Linting, Validation & Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      # ------------------------------------------------------------------------
+      # Checkout repository
+      # ------------------------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ------------------------------------------------------------------------
+      # Setup Terraform
+      # ------------------------------------------------------------------------
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.5
+
+      # ------------------------------------------------------------------------
+      # Terraform Format Check
+      # Ensures all Terraform files follow canonical formatting.
+      # ------------------------------------------------------------------------
+      - name: Terraform Format
+        run: terraform fmt -recursive -check
+
+      # ------------------------------------------------------------------------
+      # Terraform Validate
+      # Validates all environment configurations.
+      # ------------------------------------------------------------------------
+      - name: Terraform Validate (dev)
+        working-directory: envs/dev
+        run: terraform validate
+
+      # ------------------------------------------------------------------------
+      # Install TFLint
+      # ------------------------------------------------------------------------
+      - name: Install TFLint
+        run: |
+          curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
+
+      # ------------------------------------------------------------------------
+      # Run TFLint
+      # Uses the project's configuration file in tools/tflint.hcl
+      # ------------------------------------------------------------------------
+      - name: TFLint
+        run: tflint --config=tools/tflint.hcl
+
+      # ------------------------------------------------------------------------
+      # Install Checkov
+      # ------------------------------------------------------------------------
+      - name: Install Checkov
+        run: pip install checkov
+
+      # ------------------------------------------------------------------------
+      # Run Checkov Security Scan
+      # Uses the project's configuration file in tools/checkov-config.yaml
+      # ------------------------------------------------------------------------
+      - name: Checkov Security Scan
+        run: checkov --config-file tools/checkov-config.yaml
+
+      # ------------------------------------------------------------------------
+      # Terraform Plan (dev)
+      # Generates an execution plan for visibility and review.
+      # ------------------------------------------------------------------------
+      - name: Terraform Init (dev)
+        working-directory: envs/dev
+        run: terraform init
+
+      - name: Terraform Plan (dev)
+        working-directory: envs/dev
+        run: terraform plan -var-file=terraform.tfvars -out=tfplan
+
+      # ------------------------------------------------------------------------
+      # Upload Terraform Plan as an artifact
+      # Allows reviewers to download and inspect the plan.
+      # ------------------------------------------------------------------------
+      - name: Upload Terraform Plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan-dev
+          path: envs/dev/tfplan
