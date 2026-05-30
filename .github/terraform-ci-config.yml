@@ -1,0 +1,19 @@
+# ------------------------------------------------------------------------------
+# Centralized Terraform CI Configuration
+# ------------------------------------------------------------------------------
+# This file defines the Terraform versions and module paths used across all CI
+# workflows. It acts as the single source of truth for matrix generation.
+# ------------------------------------------------------------------------------
+
+terraform_versions:
+  - "1.12.1"
+  - "1.15.5"
+
+modules:
+  - "modules/network"
+  - "modules/compute"
+  - "modules/storage"
+
+checkov_version: "3.2.260"
+
+tflint_version: "v0.62.1"

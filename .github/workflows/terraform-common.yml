@@ -1,0 +1,49 @@
+# ------------------------------------------------------------------------------
+# Terraform CI Pipeline — Reusable Core Workflow
+# ------------------------------------------------------------------------------
+# This reusable workflow provides shared setup steps for all Terraform CI jobs.
+# It performs:
+# - Repository checkout
+# - Terraform installation
+#
+# Tool-specific logic (fmt/validate, TFLint, Checkov) is intentionally excluded
+# to preserve modularity and separation of concerns.
+#
+# Other workflows call this workflow and then run their own tool steps.
+# ------------------------------------------------------------------------------
+
+name: Terraform Common
+
+on:
+  workflow_call:
+    inputs:
+      terraform_version:
+        description: "Terraform version to install."
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  setup:
+    name: Terraform Shared Setup
+    runs-on: ubuntu-latest
+
+    outputs:
+      terraform_version: ${{ inputs.terraform_version }}
+
+    steps:
+      # ------------------------------------------------------------------------
+      # Checkout repository
+      # ------------------------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ------------------------------------------------------------------------
+      # Setup Terraform
+      # ------------------------------------------------------------------------
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ inputs.terraform_version }}
