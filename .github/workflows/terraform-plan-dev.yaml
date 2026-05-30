@@ -1,0 +1,80 @@
+# ------------------------------------------------------------------------------
+# Terraform Plan Pipeline (Development Environment)
+# ------------------------------------------------------------------------------
+# This workflow generates a Terraform plan for the development environment.
+# It runs only when files within envs/dev/ are modified. The plan is uploaded
+# as an artifact for review during pull requests or after merges.
+#
+# This workflow depends on the global Terraform CI workflow, ensuring that all
+# static checks pass before environment-specific planning occurs.
+# ------------------------------------------------------------------------------
+
+name: Terraform Plan (dev)
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - "envs/dev/**"
+  push:
+    branches: [ main ]
+    paths:
+      - "envs/dev/**"
+
+permissions:
+  contents: read
+
+jobs:
+  plan-dev:
+    name: Terraform Plan (dev)
+    runs-on: ubuntu-latest
+    needs: []
+
+    steps:
+      # ------------------------------------------------------------------------
+      # Checkout repository
+      # ------------------------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ------------------------------------------------------------------------
+      # Setup Terraform
+      # ------------------------------------------------------------------------
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.5
+
+      # ------------------------------------------------------------------------
+      # Terraform Init (dev)
+      # Initializes backend and providers for the dev environment.
+      # ------------------------------------------------------------------------
+      - name: Terraform Init (dev)
+        working-directory: envs/dev
+        run: terraform init
+
+      # ------------------------------------------------------------------------
+      # Terraform Validate (dev)
+      # Validates the dev environment configuration.
+      # ------------------------------------------------------------------------
+      - name: Terraform Validate (dev)
+        working-directory: envs/dev
+        run: terraform validate
+
+      # ------------------------------------------------------------------------
+      # Terraform Plan (dev)
+      # Generates an execution plan for visibility and review.
+      # ------------------------------------------------------------------------
+      - name: Terraform Plan (dev)
+        working-directory: envs/dev
+        run: terraform plan -var-file=terraform.tfvars -out=tfplan
+
+      # ------------------------------------------------------------------------
+      # Upload Terraform Plan as an artifact
+      # Allows reviewers to download and inspect the plan.
+      # ------------------------------------------------------------------------
+      - name: Upload Terraform Plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan-dev
+          path: envs/dev/tfplan

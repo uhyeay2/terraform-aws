@@ -1,34 +1,41 @@
 # ------------------------------------------------------------------------------
-# Terraform CI Pipeline
+# Terraform CI Pipeline (Global Static Analysis)
 # ------------------------------------------------------------------------------
-# This workflow performs automated formatting, validation, linting, and security
-# scanning for all Terraform modules and environments. It ensures that every
-# pull request meets the project's quality, security, and compliance standards
-# before being merged.
+# This workflow performs environment-agnostic static analysis for all Terraform
+# code in the repository. It ensures consistent formatting, validates module
+# structure, enforces linting rules, and performs security scanning.
 #
 # Tools integrated:
 # - Terraform CLI
 # - TFLint (linting)
 # - Checkov (security scanning)
 #
-# This workflow is designed to be environment-agnostic and safe to run on all
-# branches and pull requests.
+# This workflow runs on all pull requests and pushes that modify Terraform-
+# related files. It acts as the project's global quality gate before any
+# environment-specific planning or deployment occurs.
 # ------------------------------------------------------------------------------
 
 name: Terraform CI
 
 on:
   pull_request:
-    branches: [ main ]
+    branches: [ "*" ]
+    paths:
+      - "**/*.tf"
+      - "**/*.tfvars"
+      - "tools/**"
   push:
-    branches: [ main ]
+    paths:
+      - "**/*.tf"
+      - "**/*.tfvars"
+      - "tools/**"
 
 permissions:
   contents: read
 
 jobs:
-  terraform-ci:
-    name: Terraform Linting, Validation & Security Scan
+  static-checks:
+    name: Global Terraform Static Checks
     runs-on: ubuntu-latest
 
     steps:
@@ -54,58 +61,57 @@ jobs:
         run: terraform fmt -recursive -check
 
       # ------------------------------------------------------------------------
-      # Terraform Validate
-      # Validates all environment configurations.
+      # Terraform Validate (all modules)
+      # Automatically discovers all Terraform directories and validates each.
       # ------------------------------------------------------------------------
-      - name: Terraform Validate (dev)
-        working-directory: envs/dev
-        run: terraform validate
+      - name: Terraform Validate (all modules)
+        run: |
+          echo "=== Validating all Terraform modules ==="
+          for dir in $(find . -type f -name "*.tf" -exec dirname {} \; | sort -u); do
+            echo "--- Validating: $dir ---"
+            terraform -chdir="$dir" init -backend=false -input=false >/dev/null
+            terraform -chdir="$dir" validate
+          done
 
       # ------------------------------------------------------------------------
-      # Install TFLint
+      # Setup TFLint
+      # Uses the official action for deterministic, version-pinned installation.
       # ------------------------------------------------------------------------
-      - name: Install TFLint
+      - name: Setup TFLint
+        uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: v0.50.3
+
+      # ------------------------------------------------------------------------
+      # Initialize TFLint Plugins
+      # Ensures plugin directory creation and plugin installation.
+      # ------------------------------------------------------------------------
+      - name: TFLint Plugin Initialization
         run: |
-          curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
+          echo "=== Initializing TFLint Plugins ==="
+          tflint --init
 
       # ------------------------------------------------------------------------
       # Run TFLint
-      # Uses the project's configuration file in tools/tflint.hcl
+      # Executes linting using the project's configuration file.
       # ------------------------------------------------------------------------
       - name: TFLint
-        run: tflint --config=tools/tflint.hcl
+        run: |
+          echo "=== Running TFLint ==="
+          tflint --config=tools/tflint.hcl
 
       # ------------------------------------------------------------------------
-      # Install Checkov
+      # Install Checkov (version pinned)
+      # Ensures deterministic security scanning behavior.
       # ------------------------------------------------------------------------
       - name: Install Checkov
-        run: pip install checkov
+        run: pip install checkov==3.2.260
 
       # ------------------------------------------------------------------------
-      # Run Checkov Security Scan
-      # Uses the project's configuration file in tools/checkov-config.yaml
+      # Run Checkov Security Scan (Terraform-only)
+      # Scans all Terraform directories recursively using the project's config.
       # ------------------------------------------------------------------------
       - name: Checkov Security Scan
-        run: checkov --config-file tools/checkov-config.yaml
-
-      # ------------------------------------------------------------------------
-      # Terraform Plan (dev)
-      # Generates an execution plan for visibility and review.
-      # ------------------------------------------------------------------------
-      - name: Terraform Init (dev)
-        working-directory: envs/dev
-        run: terraform init
-
-      - name: Terraform Plan (dev)
-        working-directory: envs/dev
-        run: terraform plan -var-file=terraform.tfvars -out=tfplan
-
-      # ------------------------------------------------------------------------
-      # Upload Terraform Plan as an artifact
-      # Allows reviewers to download and inspect the plan.
-      # ------------------------------------------------------------------------
-      - name: Upload Terraform Plan
-        uses: actions/upload-artifact@v4
-        with:
-          name: terraform-plan-dev
-          path: envs/dev/tfplan
+        run: |
+          echo "=== Running Checkov Security Scan ==="
+          checkov -d . --framework terraform --config-file tools/checkov-config.yaml
