@@ -67,18 +67,14 @@ jobs:
       - name: Install TFLint
         working-directory: ${{ github.workspace }}
         run: |
-          echo "=== INSTALLING TFLINT ==="
-          echo "Working directory: $(pwd)"
-          echo "Listing workspace:"
-          ls -al .
+          echo "=== Installing TFLint ==="
+          echo "Working directory: $( ${{ github.workspace}} )"
           echo "Installing TFLint..."
           curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
           echo "TFLint binary location:"
           which tflint || true
           echo "TFLint version:"
           tflint --version || true
-          echo "Environment variables:"
-          env | sort
 
       # ------------------------------------------------------------------------
       # Initialize TFLint Plugins
@@ -88,17 +84,10 @@ jobs:
       - name: TFLint Plugin Initialization
         working-directory: ${{ github.workspace }}
         run: |
-          echo "=== TFLINT INIT DEBUG ==="
-          echo "Working directory: $(pwd)"
-          echo "Listing workspace:"
-          ls -al .
-          echo "Ensuring plugin directory exists:"
-          mkdir -p .tflint.d/plugins
-          ls -al .tflint.d || true
+          echo "=== TFLint Plugin Initialization ==="
+          echo "Working directory: $( ${{ github.workspace}} )"
           echo "Running tflint --init..."
-          tflint --init --plugin-dir ${{ github.workspace }}/.tflint.d/plugins || true
-          echo "Listing plugin directory after init:"
-          ls -al .tflint.d/plugins || true
+          tflint --init
           echo "TFLint version:"
           tflint --version || true
 
@@ -110,17 +99,11 @@ jobs:
       - name: TFLint
         working-directory: ${{ github.workspace }}
         run: |
-          echo "=== TFLINT RUN DEBUG ==="
-          echo "Working directory: $(pwd)"
-          echo "Listing workspace:"
-          ls -al .
-          echo "Listing plugin directory:"
-          ls -al .tflint.d/plugins || true
-          echo "Running TFLint with config and plugin-dir..."
+          echo "=== TFLint RUN ==="
+          echo "Working directory: $( ${{ github.workspace}} )"
+          echo "Running TFLint with config..."
           tflint --config=tools/tflint.hcl \
-                 --plugin-dir ${{ github.workspace }}/.tflint.d/plugins \
-                 --log-level debug
-                 
+
       # ------------------------------------------------------------------------
       # Install Checkov
       # ------------------------------------------------------------------------
