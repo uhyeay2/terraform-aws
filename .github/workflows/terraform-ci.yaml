@@ -74,7 +74,7 @@ jobs:
       # Required before running TFLint.
       # ------------------------------------------------------------------------
       - name: TFLint Plugin Initialization
-        working-directory: ${{ github.workspace }}
+        working-directory: .
         run: tflint --init
 
       # ------------------------------------------------------------------------
@@ -83,7 +83,7 @@ jobs:
       # Terraform code. Requires plugins initialized in the same directory.
       # ------------------------------------------------------------------------
       - name: TFLint
-        working-directory: ${{ github.workspace }}
+        working-directory: .
         run: tflint --config=tools/tflint.hcl
 
       # ------------------------------------------------------------------------
