@@ -25,21 +25,10 @@ permissions:
 
 jobs:
   # ------------------------------------------------------------------------
-  # Load Configs from .github/terraform-ci-config.yml (ie Terraform Version, Modules)
+  # Load Configs using reusable workflow terraform-load-config.yml
   # ------------------------------------------------------------------------
   load-config:
-    runs-on: ubuntu-latest
-    outputs:
-      versions: ${{ steps.cfg.outputs.versions }}
-      modules: ${{ steps.cfg.outputs.modules }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Load CI config
-        id: cfg
-        run: |
-          sudo apt-get update && sudo apt-get install -y yq
-          echo "versions=$(yq '.terraform_versions' -o=json .github/terraform-ci-config.yml)" >> $GITHUB_OUTPUT
-          echo "modules=$(yq '.modules' -o=json .github/terraform-ci-config.yml)" >> $GITHUB_OUTPUT
+    uses: ./.github/workflows/terraform-load-config.yml
 
   # ------------------------------------------------------------------------
   # Setup Static Checks, use terraform version from config
@@ -47,7 +36,7 @@ jobs:
   static-checks:
     needs: load-config
     strategy:
-      fail-fast: false
+      fail-fast: ${{ needs.load-config.outputs.fail_fast_static }}
       matrix:
         terraform_version: ${{ fromJson(needs.load-config.outputs.versions) }}
         module: ${{ fromJson(needs.load-config.outputs.modules) }}
