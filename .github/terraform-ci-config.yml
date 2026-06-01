@@ -24,4 +24,4 @@ tflint_version: v0.62.1
 fail_fast:
   static_checks: true
   tflint: true
-  checkov: false
+  checkov: true
