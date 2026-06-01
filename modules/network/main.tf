@@ -1,18 +1,23 @@
-// -----------------------------------------------------------------------------
-// Network module
-// Provides a baseline VPC, subnet, routing, and security group configuration.
-// Designed to be region-agnostic and reusable across multiple environments.
-// -----------------------------------------------------------------------------
+// ============================================================================
+// Network Module
+// Provides a reusable, environment‑agnostic VPC foundation including:
+// - VPC
+// - Subnet
+// - Routing
+// - Internet Gateway
+// - Flow Logs (CloudWatch + KMS encryption)
+// - Hardened default security group
+// - Public security group for consumer modules
+// ============================================================================
 
 locals {
-  // Standardized name prefix applied to all resources managed by this module.
-  // Example: tf-learning-dev
+  // Standardized prefix for all resources.
   name_prefix = "${var.project_name}-${var.environment}"
 }
 
-// VPC definition.
-// Provides an isolated virtual network with DNS support and hostnames enabled
-// to support public-facing workloads.
+# -----------------------------------------------------------------------------
+# VPC
+# -----------------------------------------------------------------------------
 resource "aws_vpc" "this" {
   cidr_block           = var.vpc_cidr_block
   enable_dns_support   = var.enable_dns_support
@@ -28,11 +33,29 @@ resource "aws_vpc" "this" {
   )
 }
 
-// CloudWatch Log Group for VPC flow logs.
-// Stores network flow records for analysis, troubleshooting, and security auditing.
+# -----------------------------------------------------------------------------
+# CloudWatch Log Group (VPC Flow Logs)
+# Encrypted with KMS and retains logs for 1 year (Checkov compliance)
+# -----------------------------------------------------------------------------
+resource "aws_kms_key" "cloudwatch_logs" {
+  description             = "KMS key for CloudWatch log group encryption"
+  deletion_window_in_days = 7
+  enable_key_rotation     = true
+
+  tags = merge(
+    {
+      Name        = "${local.name_prefix}-cloudwatch-kms"
+      Environment = var.environment
+      Project     = var.project_name
+    },
+    var.tags
+  )
+}
+
 resource "aws_cloudwatch_log_group" "vpc_flow_logs" {
   name              = "/aws/vpc/${local.name_prefix}-flow-logs"
-  retention_in_days = 30
+  retention_in_days = 365
+  kms_key_id        = aws_kms_key.cloudwatch_logs.arn
 
   tags = merge(
     {
@@ -44,8 +67,9 @@ resource "aws_cloudwatch_log_group" "vpc_flow_logs" {
   )
 }
 
-// IAM role for VPC flow logs.
-// Grants VPC Flow Logs permission to publish logs to CloudWatch Logs.
+# -----------------------------------------------------------------------------
+# IAM Role + Policy for VPC Flow Logs
+# -----------------------------------------------------------------------------
 resource "aws_iam_role" "vpc_flow_logs" {
   name = "${local.name_prefix}-vpc-flow-logs-role"
 
@@ -72,15 +96,14 @@ resource "aws_iam_role" "vpc_flow_logs" {
   )
 }
 
-// IAM policy attachment for VPC flow logs role.
-// Allows the role to write flow logs to CloudWatch Logs.
 resource "aws_iam_role_policy_attachment" "vpc_flow_logs" {
   role       = aws_iam_role.vpc_flow_logs.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs"
 }
 
-// VPC flow log configuration.
-// Captures all traffic (accepted and rejected) for the VPC and publishes to CloudWatch Logs.
+# -----------------------------------------------------------------------------
+# VPC Flow Logs
+# -----------------------------------------------------------------------------
 resource "aws_flow_log" "vpc" {
   log_destination_type = "cloud-watch-logs"
   log_destination      = aws_cloudwatch_log_group.vpc_flow_logs.arn
@@ -98,16 +121,15 @@ resource "aws_flow_log" "vpc" {
   )
 }
 
-// Public subnet.
-// Located in a single availability zone and configured to assign public IP
-// addresses to instances launched within it.
+# -----------------------------------------------------------------------------
+# Public Subnet
+# -----------------------------------------------------------------------------
 resource "aws_subnet" "public" {
   vpc_id            = aws_vpc.this.id
   cidr_block        = var.public_subnet_cidr_block
   availability_zone = var.availability_zone
 
-  # Public subnets should not automatically assign public IPs unless required.
-  # Best practice is to let the EC2 instance or ENI decide whether it needs public IP
+  // Public IPs should not be auto-assigned unless explicitly required.
   map_public_ip_on_launch = false
 
   tags = merge(
@@ -121,8 +143,9 @@ resource "aws_subnet" "public" {
   )
 }
 
-// Internet Gateway.
-// Provides a target for internet-bound traffic from the public subnet.
+# -----------------------------------------------------------------------------
+# Internet Gateway
+# -----------------------------------------------------------------------------
 resource "aws_internet_gateway" "this" {
   vpc_id = aws_vpc.this.id
 
@@ -136,8 +159,9 @@ resource "aws_internet_gateway" "this" {
   )
 }
 
-// Public route table.
-// Routes outbound traffic from the public subnet to the Internet Gateway.
+# -----------------------------------------------------------------------------
+# Public Route Table + Association
+# -----------------------------------------------------------------------------
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.this.id
 
@@ -157,24 +181,20 @@ resource "aws_route_table" "public" {
   )
 }
 
-// Association between the public subnet and the public route table.
-// Ensures that instances in the public subnet use the internet route.
 resource "aws_route_table_association" "public" {
   subnet_id      = aws_subnet.public.id
   route_table_id = aws_route_table.public.id
 }
 
-// Default security group hardening.
-// Overrides the default VPC security group to deny all inbound and outbound traffic,
-// ensuring that only explicitly defined security groups are used for workloads.
+# -----------------------------------------------------------------------------
+# Hardened Default Security Group
+# Removes all default ingress/egress rules for a secure baseline
+# -----------------------------------------------------------------------------
 resource "aws_default_security_group" "this" {
   vpc_id = aws_vpc.this.id
 
-  // Remove all default ingress rules.
   ingress = []
-
-  // Remove all default egress rules.
-  egress = []
+  egress  = []
 
   tags = merge(
     {
@@ -186,21 +206,21 @@ resource "aws_default_security_group" "this" {
   )
 }
 
-// Security group for public-facing workloads.
-// Intended for use by resources that require inbound access from the internet.
-// Specific ingress rules should be defined by the consuming environment or
-// compute module to avoid over-permissive defaults.
+# -----------------------------------------------------------------------------
+# Public Security Group (Reusable)
+# Checkov skip: SG is intentionally not attached in this module
+# -----------------------------------------------------------------------------
 resource "aws_security_group" "public" {
+  # checkov:skip=CKV2_AWS_5: "Security group intentionally defined for reuse by other modules"
+
   name        = "${local.name_prefix}-public-sg"
   description = "Security group for public-facing resources in the ${local.name_prefix} network."
   vpc_id      = aws_vpc.this.id
 
-  // No ingress rules are defined here by default to avoid overly broad access.
-  // Ingress rules should be added in the consuming module or environment
-  // according to workload requirements.
+  // No ingress rules by default — consumer modules define them.
 
   egress {
-    description = "Restrict outbound traffic to only what is required."
+    description = "Restrict outbound traffic to HTTPS only."
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"

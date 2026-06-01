@@ -1,15 +1,9 @@
-// outputs.tf
 // -----------------------------------------------------------------------------
 // Outputs for the network module.
-// These values are consumed by environment configurations and other modules.
-// -----------------------------------------------------------------------------
-
-// -----------------------------------------------------------------------------
-// Core network outputs
 // -----------------------------------------------------------------------------
 
 output "vpc_id" {
-  description = "ID of the VPC created by this module."
+  description = "ID of the created VPC."
   value       = aws_vpc.this.id
 }
 
@@ -18,30 +12,17 @@ output "public_subnet_id" {
   value       = aws_subnet.public.id
 }
 
-output "public_route_table_id" {
-  description = "ID of the public route table."
-  value       = aws_route_table.public.id
-}
-
-output "internet_gateway_id" {
-  description = "ID of the Internet Gateway."
-  value       = aws_internet_gateway.this.id
-}
-
-// -----------------------------------------------------------------------------
-// Security outputs
-// -----------------------------------------------------------------------------
-
 output "public_security_group_id" {
-  description = "ID of the public security group."
+  description = "ID of the public security group for consumer modules."
   value       = aws_security_group.public.id
 }
 
-// -----------------------------------------------------------------------------
-// Observability outputs
-// -----------------------------------------------------------------------------
+output "flow_log_group_name" {
+  description = "Name of the CloudWatch log group used for VPC flow logs."
+  value       = aws_cloudwatch_log_group.vpc_flow_logs.name
+}
 
-output "vpc_flow_log_id" {
-  description = "ID of the VPC Flow Log resource."
-  value       = aws_flow_log.vpc.id
+output "kms_key_id" {
+  description = "KMS key ID used for CloudWatch log group encryption."
+  value       = aws_kms_key.cloudwatch_logs.key_id
 }

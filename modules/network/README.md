@@ -1,120 +1,137 @@
-# **Network Module**
+# 📘 **Network Module**
 
-The **Network module** provisions a minimal, production‑ready AWS networking foundation. It creates a VPC, a public subnet, routing components, security groups, and optional observability features such as VPC Flow Logs. The module is intentionally **region‑agnostic**, allowing environments (e.g., dev, staging, prod) to supply their own AWS region, availability zones, and CIDR ranges.
+A reusable Terraform module that provisions a secure, production‑ready AWS network foundation.  
+This module is designed to be **environment‑agnostic**, **CIS‑aligned**, and **Checkov‑clean**, providing:
 
-This module is designed to serve as a **baseline network layer** for workloads that require internet connectivity while maintaining security best practices and clear separation of concerns.
-
----
-
-## **Features**
-
-- VPC with DNS support and hostnames enabled  
-- Public subnet in a user‑specified availability zone  
-- Internet Gateway and public route table  
-- Route table association for outbound internet access  
+- A VPC with DNS support  
+- Public subnet  
+- Internet gateway  
+- Routing  
 - Hardened default security group  
-- Public security group for internet‑facing workloads  
-- Optional VPC Flow Logs for auditing and troubleshooting  
-- Consistent tagging and naming conventions  
-- Clean separation between module logic and environment configuration  
+- Public security group for consumer modules  
+- VPC Flow Logs with **KMS encryption** and **1‑year retention**  
+- Clean tagging strategy  
 
 ---
 
-## **Module Structure**
+## 🏗️ **Architecture Overview**
 
-The module is organized into logical regions for clarity and maintainability:
-
-- **Locals** — naming conventions and computed values  
-- **Core resources** — VPC, subnet, IGW, route table, associations  
-- **Security resources** — default SG lockdown, public SG  
-- **Observability resources** — VPC Flow Logs, IAM roles, log groups  
-- **Inputs** — defined in `variables.tf`  
-- **Outputs** — defined in `outputs.tf`  
-
-This structure ensures the module remains easy to extend and reason about.
+```
+┌───────────────────────────────────────────────────────────────┐
+│                           AWS VPC                             │
+│                     (DNS support enabled)                     │
+│                                                               │
+│  ┌──────────────────────────────┐     ┌────────────────────┐  │
+│  │        Public Subnet         │     │  Default SG (deny) │  │
+│  │  - No auto-assign public IP  │     └────────────────────┘  │
+│  │  - Routed to IGW             │                             │
+│  └───────────────┬──────────────┘                             │
+│                  │                                            │
+│        ┌─────────▼─────────┐                                  │
+│        │ Internet Gateway  │                                  │
+│        └───────────────────┘                                  │
+│                                                               │
+│  ┌──────────────────────────────────────────────────────────┐ │
+│  │                   VPC Flow Logs                          │ │
+│  │  - CloudWatch Log Group (KMS encrypted)                  │ │
+│  │  - IAM Role + Policy                                     │ │
+│  └──────────────────────────────────────────────────────────┘ │
+│                                                               │
+│  ┌──────────────────────────────────────────────────────────┐ │
+│  │ Public Security Group (reusable)                         │ │
+│  │  - No ingress rules (consumer-defined)                   │ │
+│  │  - Egress restricted to HTTPS                            │ │
+│  └──────────────────────────────────────────────────────────┘ │
+└───────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## **Usage Example**
+## 🚀 **Features**
 
-Below is an example of how an environment (e.g., `envs/dev/main.tf`) consumes this module:
+- **Secure by default**  
+  - Default SG denies all traffic  
+  - Public SG has no ingress rules  
+  - Egress restricted to HTTPS only  
+
+- **Logging & Compliance**  
+  - VPC Flow Logs enabled  
+  - CloudWatch Log Group encrypted with **KMS**  
+  - Log retention set to **365 days** (Checkov compliant)  
+
+- **Modular & Reusable**  
+  - Public SG intentionally not attached (consumer modules attach it)  
+  - Clean outputs for easy integration  
+
+- **Tagging**  
+  - All resources support custom tags  
+  - Standardized naming convention  
+
+---
+
+## 📦 **Module Usage**
 
 ```hcl
-provider "aws" {
-  region = var.aws_region
-}
-
 module "network" {
-  source = "../../modules/network"
+  source = "./modules/network"
 
+  project_name              = "myapp"
+  environment               = "dev"
   vpc_cidr_block            = "10.0.0.0/16"
   public_subnet_cidr_block  = "10.0.1.0/24"
-  availability_zone         = "${var.aws_region}a"
+  availability_zone         = "us-east-1a"
 
-  project_name = var.project_name
-  environment  = var.environment
-  tags         = var.tags
+  tags = {
+    Owner = "platform-team"
+    CostCenter = "1234"
+  }
 }
 ```
 
 ---
 
-## **Inputs**
+## 🔧 **Inputs**
 
-| Variable | Type | Description |
-|---------|------|-------------|
-| `vpc_cidr_block` | string | CIDR block for the VPC. |
-| `public_subnet_cidr_block` | string | CIDR block for the public subnet. |
-| `availability_zone` | string | Availability zone for the public subnet. |
-| `project_name` | string | Project identifier used for naming and tagging. |
-| `environment` | string | Environment name (dev, staging, prod). |
-| `tags` | map(string) | Additional tags applied to all resources. |
-| `enable_dns_support` | bool | Enables DNS support in the VPC. |
-| `enable_dns_hostnames` | bool | Enables DNS hostnames in the VPC. |
+| Variable | Type | Description | Required |
+|---------|------|-------------|----------|
+| `project_name` | string | Project/application name | Yes |
+| `environment` | string | Environment (dev/staging/prod) | Yes |
+| `vpc_cidr_block` | string | CIDR block for the VPC | Yes |
+| `public_subnet_cidr_block` | string | CIDR block for public subnet | Yes |
+| `availability_zone` | string | AZ for the subnet | Yes |
+| `enable_dns_support` | bool | Enable VPC DNS support | No (default: true) |
+| `enable_dns_hostnames` | bool | Enable VPC DNS hostnames | No (default: true) |
+| `tags` | map(string) | Additional tags | No |
 
 ---
 
-## **Outputs**
+## 📤 **Outputs**
 
 | Output | Description |
 |--------|-------------|
-| `vpc_id` | ID of the VPC. |
-| `public_subnet_id` | ID of the public subnet. |
-| `public_route_table_id` | ID of the public route table. |
-| `internet_gateway_id` | ID of the Internet Gateway. |
-| `public_security_group_id` | ID of the public security group. |
-| `vpc_flow_log_id` | ID of the VPC Flow Log resource. |
+| `vpc_id` | ID of the VPC |
+| `public_subnet_id` | ID of the public subnet |
+| `public_security_group_id` | ID of the reusable public SG |
+| `flow_log_group_name` | CloudWatch log group name |
+| `kms_key_id` | KMS key ID used for log encryption |
 
 ---
 
-## **Security Considerations**
+## 🔐 **Security Considerations**
 
-- The default security group is explicitly locked down to prevent unintended traffic.  
-- The public security group contains **no ingress rules** by default; consuming modules must define them intentionally.  
-- Outbound traffic is restricted to HTTPS (443) by default to reduce exposure.  
-- Flow logs can be enabled to support auditing and incident response.  
-
----
-
-## **Design Philosophy**
-
-This module follows these principles:
-
-- **Region‑agnostic** — no hard‑coded region or AZ assumptions  
-- **Environment‑driven** — environment layer controls region, CIDRs, and workload‑specific rules  
-- **Secure by default** — no permissive ingress, restricted egress, hardened default SG  
-- **Composable** — outputs expose only what downstream modules need  
-- **Predictable naming** — consistent tagging and naming conventions via `name_prefix`  
+- Default SG is fully locked down  
+- Public SG has **no ingress rules** by design  
+- Flow logs are encrypted with a dedicated KMS key  
+- HTTPS-only egress reduces attack surface  
 
 ---
 
-## **Future Enhancements/Extensions Under Consideration**
+## 🧪 **Checkov Compliance**
 
-- Adding private subnets  
-- NAT Gateways for outbound private traffic  
-- Additional route tables  
-- ALB/NLB integration  
-- VPC endpoints for AWS services  
-- Multi‑AZ expansion  
+This module passes the following policies:
 
-Note: The module is intentionally minimal to serve as a clean foundation.
+- **CKV_AWS_158** — CloudWatch Log Group encrypted with KMS  
+- **CKV_AWS_338** — Log retention ≥ 1 year  
+- **CKV2_AWS_5** — SG intentionally unused (skip annotation included)  
+
+---
