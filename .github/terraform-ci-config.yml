@@ -7,18 +7,18 @@
 
 # Terraform Version
 terraform_versions:
-  - "1.12.1"
-  - "1.15.5"
+  - 1.12.1
+  - 1.15.5
 
 # Modules - TODO: Load these dynamically.
 modules:
-  - "modules/network"
-  - "modules/compute"
-  - "modules/storage"
+  - modules/network
+  - modules/compute
+  - modules/storage
 
 # Tool Versions
-checkov_version: "3.2.260"
-tflint_version: "v0.62.1"
+checkov_version: 3.2.260
+tflint_version: v0.62.1
 
 # Per-Workflow Fail-Fast Settings
 fail_fast:
