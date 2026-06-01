@@ -7,7 +7,11 @@
 # - Multiple Terraform versions
 # - Multiple Terraform modules
 #
-# Each matrix job calls the reusable "Terraform Common" workflow for setup.
+# Workflow structure:
+#   1. Load centralized CI configuration
+#   2. Matrix job: terraform setup via reusable terraform-common.yml
+#   3. Matrix job: run TFLint for each module + version combination
+#
 # ------------------------------------------------------------------------------
 
 name: Terraform TFLint
@@ -23,18 +27,24 @@ permissions:
 
 jobs:
   # ------------------------------------------------------------------------
-  # Load Configs using reusable workflow terraform-load-config.yml
+  # Load centralized CI configuration
   # ------------------------------------------------------------------------
   load-config:
     uses: ./.github/workflows/terraform-load-config.yml
-        
+
   # ------------------------------------------------------------------------
-  # Setup tflint, use terraform version from config
+  # Matrix Terraform Setup
+  #
+  # This job:
+  #   - Expands into multiple jobs based on Terraform versions + modules
+  #   - Calls the reusable terraform-common.yml workflow
+  #
   # ------------------------------------------------------------------------
   tflint-setup:
     needs: load-config
+
     strategy:
-      fail-fast: ${{ needs.load-config.outputs.fail_fast_tflint }}
+      fail-fast: ${{ fromJson(needs.load-config.outputs.fail_fast_tflint) }}
       matrix:
         terraform_version: ${{ fromJson(needs.load-config.outputs.versions) }}
         module: ${{ fromJson(needs.load-config.outputs.modules) }}
@@ -44,37 +54,53 @@ jobs:
       terraform_version: ${{ matrix.terraform_version }}
 
   # ------------------------------------------------------------------------
-  # Run Tflint
+  # Matrix TFLint Scan
+  #
+  # This job:
+  #   - Uses the same matrix as tflint-setup
+  #   - Installs TFLint
+  #   - Initializes TFLint plugins
+  #   - Runs TFLint against the module for this matrix entry
+  #
   # ------------------------------------------------------------------------
   tflint:
     name: Run TFLint
-    needs: 
-        - load-config
-        - tflint-setup
+    needs:
+      - load-config
+      - tflint-setup
     runs-on: ubuntu-latest
 
+    strategy:
+      fail-fast: ${{ fromJson(needs.load-config.outputs.fail_fast_tflint) }}
+      matrix:
+        terraform_version: ${{ fromJson(needs.load-config.outputs.versions) }}
+        module: ${{ fromJson(needs.load-config.outputs.modules) }}
+
     steps:
+      # --------------------------------------------------------------------
+      # Checkout repository
+      # --------------------------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ------------------------------------------------------------------------
+      # --------------------------------------------------------------------
       # Setup TFLint (version from centralized config)
-      # ------------------------------------------------------------------------
+      # --------------------------------------------------------------------
       - name: Setup TFLint
         uses: terraform-linters/setup-tflint@v4
         with:
           tflint_version: ${{ needs.load-config.outputs.tflint }}
 
-      # ------------------------------------------------------------------------
+      # --------------------------------------------------------------------
       # Initialize TFLint Plugins
-      # ------------------------------------------------------------------------
+      # --------------------------------------------------------------------
       - name: TFLint Plugin Initialization
         run: tflint --init
 
-      # ------------------------------------------------------------------------
+      # --------------------------------------------------------------------
       # Run TFLint (module-specific)
-      # ------------------------------------------------------------------------
-      - name: TFLint
+      # --------------------------------------------------------------------
+      - name: TFLint Scan
         run: |
           echo "=== Running TFLint on module: ${{ matrix.module }} ==="
           tflint --config=tools/tflint.hcl ${{ matrix.module }}

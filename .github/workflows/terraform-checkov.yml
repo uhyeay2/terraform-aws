@@ -7,7 +7,11 @@
 # - Multiple Terraform versions
 # - Multiple Terraform modules
 #
-# Each matrix job calls the reusable "Terraform Common" workflow for setup.
+# Workflow structure:
+#   1. Load centralized CI configuration
+#   2. Matrix job: terraform setup via reusable terraform-common.yml
+#   3. Matrix job: run Checkov for each module + version combination
+#
 # ------------------------------------------------------------------------------
 
 name: Terraform Checkov Security Scan
@@ -23,18 +27,24 @@ permissions:
 
 jobs:
   # ------------------------------------------------------------------------
-  # Load Configs using reusable workflow terraform-load-config.yml
+  # Load centralized CI configuration
   # ------------------------------------------------------------------------
   load-config:
     uses: ./.github/workflows/terraform-load-config.yml
 
   # ------------------------------------------------------------------------
-  # Setup Checkov, use terraform version from config
+  # Matrix Terraform Setup
+  #
+  # This job:
+  #   - Expands into multiple jobs based on Terraform versions + modules
+  #   - Calls the reusable terraform-common.yml workflow
+  #
   # ------------------------------------------------------------------------
   checkov-setup:
     needs: load-config
+
     strategy:
-      fail-fast: ${{ needs.load-config.outputs.fail_fast_checkov }}
+      fail-fast: ${{ fromJson(needs.load-config.outputs.fail_fast_checkov) }}
       matrix:
         terraform_version: ${{ fromJson(needs.load-config.outputs.versions) }}
         module: ${{ fromJson(needs.load-config.outputs.modules) }}
@@ -44,29 +54,47 @@ jobs:
       terraform_version: ${{ matrix.terraform_version }}
 
   # ------------------------------------------------------------------------
-  # Run Checkov
+  # Matrix Checkov Scan
+  #
+  # This job:
+  #   - Uses the same matrix as checkov-setup
+  #   - Installs Checkov
+  #   - Runs Checkov against the module for this matrix entry
+  #
   # ------------------------------------------------------------------------
   checkov:
     name: Run Checkov
-    needs: 
+    needs:
       - load-config
       - checkov-setup
     runs-on: ubuntu-latest
 
+    strategy:
+      fail-fast: ${{ fromJson(needs.load-config.outputs.fail_fast_checkov) }}
+      matrix:
+        terraform_version: ${{ fromJson(needs.load-config.outputs.versions) }}
+        module: ${{ fromJson(needs.load-config.outputs.modules) }}
+
     steps:
+      # --------------------------------------------------------------------
+      # Checkout repository
+      # --------------------------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ------------------------------------------------------------------------
+      # --------------------------------------------------------------------
       # Install Checkov (version from centralized config)
-      # ------------------------------------------------------------------------
+      # --------------------------------------------------------------------
       - name: Install Checkov
         run: pip install checkov==${{ needs.load-config.outputs.checkov }}
 
-      # ------------------------------------------------------------------------
+      # --------------------------------------------------------------------
       # Run Checkov (module-specific)
-      # ------------------------------------------------------------------------
+      # --------------------------------------------------------------------
       - name: Checkov Security Scan
         run: |
           echo "=== Running Checkov on module: ${{ matrix.module }} ==="
-          checkov -d ${{ matrix.module }} --framework terraform --config-file tools/checkov-config.yaml
+          checkov \
+            -d ${{ matrix.module }} \
+            --framework terraform \
+            --config-file tools/checkov-config.yaml
