@@ -1,8 +1,5 @@
-// variables.tf
 // -----------------------------------------------------------------------------
 // Input variables for the network module.
-// These variables allow the module to remain region-agnostic and reusable across
-// multiple environments (dev, staging, prod).
 // -----------------------------------------------------------------------------
 
 // -----------------------------------------------------------------------------

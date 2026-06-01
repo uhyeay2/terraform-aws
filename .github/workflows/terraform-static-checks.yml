@@ -2,14 +2,18 @@
 # Terraform CI Pipeline — Static Formatting & Validation (Matrix)
 # ------------------------------------------------------------------------------
 # This workflow performs:
-# - Terraform formatting (fmt)
-# - Terraform validation (validate)
+#   - Terraform formatting (fmt)
+#   - Terraform validation (validate)
 #
 # It runs as a matrix across:
-# - Multiple Terraform versions
-# - Multiple Terraform modules
+#   - Multiple Terraform versions
+#   - Multiple Terraform modules
 #
-# Each matrix job calls the reusable "Terraform Common" workflow for setup.
+# Workflow structure:
+#   1. Load centralized CI configuration
+#   2. Matrix job: terraform setup via reusable terraform-common.yml
+#   3. Matrix job: run fmt + validate for each module + version combination
+#
 # ------------------------------------------------------------------------------
 
 name: Terraform Static Checks
@@ -25,18 +29,24 @@ permissions:
 
 jobs:
   # ------------------------------------------------------------------------
-  # Load Configs using reusable workflow terraform-load-config.yml
+  # Load centralized CI configuration
   # ------------------------------------------------------------------------
   load-config:
     uses: ./.github/workflows/terraform-load-config.yml
 
   # ------------------------------------------------------------------------
-  # Setup Static Checks, use terraform version from config
+  # Matrix Terraform Setup
+  #
+  # This job:
+  #   - Expands into multiple jobs based on Terraform versions + modules
+  #   - Calls the reusable terraform-common.yml workflow
+  #
   # ------------------------------------------------------------------------
-  static-checks:
+  static-checks-setup:
     needs: load-config
+
     strategy:
-      fail-fast: ${{ needs.load-config.outputs.fail_fast_static }}
+      fail-fast: ${{ fromJson(needs.load-config.outputs.fail_fast_static) }}
       matrix:
         terraform_version: ${{ fromJson(needs.load-config.outputs.versions) }}
         module: ${{ fromJson(needs.load-config.outputs.modules) }}
@@ -44,28 +54,69 @@ jobs:
     uses: ./.github/workflows/terraform-common.yml
     with:
       terraform_version: ${{ matrix.terraform_version }}
-      
+
   # ------------------------------------------------------------------------
-  # Run Static Checks (ie Terraform Format, Terraform Validate)
+  # Matrix Static Checks Execution
+  #
+  # This job:
+  #   - Calls terraform-common.yml again (Option 1)
+  #   - Ensures Terraform is installed in this job
+  #   - Runs Terraform fmt and validate for each module
+  #
   # ------------------------------------------------------------------------
   run-static-checks:
     name: Run Static Checks
-    needs: static-checks
+    needs:
+      - load-config
+      - static-checks-setup
+
+    strategy:
+      fail-fast: ${{ fromJson(needs.load-config.outputs.fail_fast_static) }}
+      matrix:
+        terraform_version: ${{ fromJson(needs.load-config.outputs.versions) }}
+        module: ${{ fromJson(needs.load-config.outputs.modules) }}
+
+    uses: ./.github/workflows/terraform-common.yml
+    with:
+      terraform_version: ${{ matrix.terraform_version }}
+
+  # ------------------------------------------------------------------------
+  # Actual Static Check Steps (fmt + validate)
+  #
+  # This job:
+  #   - Runs after run-static-checks (which installs Terraform)
+  #   - Performs fmt + validate
+  #
+  # ------------------------------------------------------------------------
+  static-checks-exec:
+    name: Execute Static Checks
+    needs:
+      - load-config
+      - run-static-checks
     runs-on: ubuntu-latest
 
+    strategy:
+      fail-fast: ${{ fromJson(needs.load-config.outputs.fail_fast_static) }}
+      matrix:
+        terraform_version: ${{ fromJson(needs.load-config.outputs.versions) }}
+        module: ${{ fromJson(needs.load-config.outputs.modules) }}
+
     steps:
+      # --------------------------------------------------------------------
+      # Checkout repository
+      # --------------------------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ------------------------------------------------------------------------
+      # --------------------------------------------------------------------
       # Terraform Format Check
-      # ------------------------------------------------------------------------
+      # --------------------------------------------------------------------
       - name: Terraform Format
         run: terraform fmt -recursive -check
 
-      # ------------------------------------------------------------------------
+      # --------------------------------------------------------------------
       # Terraform Validate (module-specific)
-      # ------------------------------------------------------------------------
+      # --------------------------------------------------------------------
       - name: Terraform Validate
         run: |
           echo "=== Validating module: ${{ matrix.module }} ==="
