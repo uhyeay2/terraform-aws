@@ -59,7 +59,8 @@ jobs:
   # Matrix Static Checks Execution
   #
   # This job:
-  #   - Uses the same matrix as static-checks-setup
+  #   - Calls terraform-common.yml again (Option 1)
+  #   - Ensures Terraform is installed in this job
   #   - Runs Terraform fmt and validate for each module
   #
   # ------------------------------------------------------------------------
@@ -68,6 +69,30 @@ jobs:
     needs:
       - load-config
       - static-checks-setup
+
+    strategy:
+      fail-fast: ${{ fromJson(needs.load-config.outputs.fail_fast_static) }}
+      matrix:
+        terraform_version: ${{ fromJson(needs.load-config.outputs.versions) }}
+        module: ${{ fromJson(needs.load-config.outputs.modules) }}
+
+    uses: ./.github/workflows/terraform-common.yml
+    with:
+      terraform_version: ${{ matrix.terraform_version }}
+
+  # ------------------------------------------------------------------------
+  # Actual Static Check Steps (fmt + validate)
+  #
+  # This job:
+  #   - Runs after run-static-checks (which installs Terraform)
+  #   - Performs fmt + validate
+  #
+  # ------------------------------------------------------------------------
+  static-checks-exec:
+    name: Execute Static Checks
+    needs:
+      - load-config
+      - run-static-checks
     runs-on: ubuntu-latest
 
     strategy:
