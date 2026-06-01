@@ -82,17 +82,17 @@ jobs:
           echo "Loaded modules: $modules"
 
           echo "=== Extracting fail_fast.static_checks ==="
-          fail_fast_static=$(yq -o=json -I=0 '.fail_fast.static_checks' .github/terraform-ci-config.yml)
+          fail_fast_static=$(yq '.fail_fast.static_checks' .github/terraform-ci-config.yml)
           echo "fail_fast_static=$fail_fast_static" >> $GITHUB_OUTPUT
           echo "Loaded fail_fast_static: $fail_fast_static"
 
           echo "=== Extracting fail_fast.tflint ==="
-          fail_fast_tflint=$(yq -o=json -I=0 '.fail_fast.tflint' .github/terraform-ci-config.yml)
+          fail_fast_tflint=$(yq '.fail_fast.tflint' .github/terraform-ci-config.yml)
           echo "fail_fast_tflint=$fail_fast_tflint" >> $GITHUB_OUTPUT
           echo "Loaded fail_fast_tflint: $fail_fast_tflint"
 
           echo "=== Extracting fail_fast.checkov ==="
-          fail_fast_checkov=$(yq -o=json -I=0 '.fail_fast.checkov' .github/terraform-ci-config.yml)
+          fail_fast_checkov=$(yq '.fail_fast.checkov' .github/terraform-ci-config.yml)
           echo "fail_fast_checkov=$fail_fast_checkov" >> $GITHUB_OUTPUT
           echo "Loaded fail_fast_checkov: $fail_fast_checkov"
 
