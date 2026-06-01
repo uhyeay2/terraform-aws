@@ -44,7 +44,6 @@ jobs:
     uses: ./.github/workflows/terraform-common.yml
     with:
       terraform_version: ${{ matrix.terraform_version }}
-
       
   # ------------------------------------------------------------------------
   # Run Static Checks (ie Terraform Format, Terraform Validate)
