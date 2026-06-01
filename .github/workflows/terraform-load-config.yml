@@ -1,0 +1,120 @@
+# ------------------------------------------------------------------------------
+# Terraform CI — Reusable Config Loader
+# ------------------------------------------------------------------------------
+# Loads and validates .github/terraform-ci-config.yml
+# Outputs all values needed by downstream workflows.
+# ------------------------------------------------------------------------------
+
+name: Terraform Load Config
+
+on:
+  workflow_call:
+    outputs:
+      versions:
+        value: ${{ jobs.load.outputs.versions }}
+      modules:
+        value: ${{ jobs.load.outputs.modules }}
+      tflint:
+        value: ${{ jobs.load.outputs.tflint }}
+      checkov:
+        value: ${{ jobs.load.outputs.checkov }}
+      fail_fast_static:
+        value: ${{ jobs.load.outputs.fail_fast_static }}
+      fail_fast_tflint:
+        value: ${{ jobs.load.outputs.fail_fast_tflint }}
+      fail_fast_checkov:
+        value: ${{ jobs.load.outputs.fail_fast_checkov }}
+
+jobs:
+  load:
+    runs-on: ubuntu-latest
+
+    outputs:
+      versions: ${{ steps.cfg.outputs.versions }}
+      modules: ${{ steps.cfg.outputs.modules }}
+      tflint: ${{ steps.cfg.outputs.tflint }}
+      checkov: ${{ steps.cfg.outputs.checkov }}
+      fail_fast_static: ${{ steps.cfg.outputs.fail_fast_static }}
+      fail_fast_tflint: ${{ steps.cfg.outputs.fail_fast_tflint }}
+      fail_fast_checkov: ${{ steps.cfg.outputs.fail_fast_checkov }}
+
+    steps:
+      # ----------------------------------------------------------------------
+      # Checkout repository
+      # ----------------------------------------------------------------------
+      - uses: actions/checkout@v4
+
+      # ----------------------------------------------------------------------
+      # Debug: Ensure config file exists and print it
+      # ----------------------------------------------------------------------
+      - name: Debug Config File
+        run: |
+          echo "=== Listing .github directory ==="
+          ls -R .github || true
+
+          echo "=== Printing terraform-ci-config.yml ==="
+          if [ -f ".github/terraform-ci-config.yml" ]; then
+            cat .github/terraform-ci-config.yml
+          else
+            echo "ERROR: .github/terraform-ci-config.yml not found"
+            exit 1
+          fi
+
+      # ----------------------------------------------------------------------
+      # Load CI config with yq v4 and validate values
+      # ----------------------------------------------------------------------
+      - name: Load CI config
+        id: cfg
+        run: |
+          echo "=== Installing yq v4 ==="
+          sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq
+          sudo chmod +x /usr/bin/yq
+          yq --version
+
+          echo "=== Extracting terraform_versions ==="
+          versions=$(yq -o=json -I=0 '.terraform_versions' .github/terraform-ci-config.yml)
+          echo "versions=$versions" >> $GITHUB_OUTPUT
+          echo "Loaded versions: $versions"
+
+          echo "=== Extracting modules ==="
+          modules=$(yq -o=json -I=0 '.modules' .github/terraform-ci-config.yml)
+          echo "modules=$modules" >> $GITHUB_OUTPUT
+          echo "Loaded modules: $modules"
+
+          echo "=== Extracting fail_fast.static_checks ==="
+          fail_fast_static=$(yq -o=json -I=0 '.fail_fast.static_checks' .github/terraform-ci-config.yml)
+          echo "fail_fast_static=$fail_fast_static" >> $GITHUB_OUTPUT
+          echo "Loaded fail_fast_static: $fail_fast_static"
+
+          echo "=== Extracting fail_fast.tflint ==="
+          fail_fast_tflint=$(yq -o=json -I=0 '.fail_fast.tflint' .github/terraform-ci-config.yml)
+          echo "fail_fast_tflint=$fail_fast_tflint" >> $GITHUB_OUTPUT
+          echo "Loaded fail_fast_tflint: $fail_fast_tflint"
+
+          echo "=== Extracting fail_fast.checkov ==="
+          fail_fast_checkov=$(yq -o=json -I=0 '.fail_fast.checkov' .github/terraform-ci-config.yml)
+          echo "fail_fast_checkov=$fail_fast_checkov" >> $GITHUB_OUTPUT
+          echo "Loaded fail_fast_checkov: $fail_fast_checkov"
+
+          echo "=== Extracting tflint_version ==="
+          tflint=$(yq -o=json -I=0 '.tflint_version' .github/terraform-ci-config.yml)
+          echo "tflint=$tflint" >> $GITHUB_OUTPUT
+          echo "Loaded tflint_version: $tflint"
+
+          echo "=== Extracting checkov_version ==="
+          checkov=$(yq -o=json -I=0 '.checkov_version' .github/terraform-ci-config.yml)
+          echo "checkov=$checkov" >> $GITHUB_OUTPUT
+          echo "Loaded checkov_version: $checkov"
+
+          # ------------------------------------------------------------------
+          # Validation: Fail early if any required value is empty
+          # ------------------------------------------------------------------
+          for var in versions modules tflint checkov fail_fast_static fail_fast_tflint fail_fast_checkov; do
+            value=$(eval echo \$$var)
+            if [ -z "$value" ] || [ "$value" = "null" ]; then
+              echo "ERROR: $var is empty or missing in terraform-ci-config.yml"
+              exit 1
+            fi
+          done
+
+          echo "=== Config loaded successfully ==="
